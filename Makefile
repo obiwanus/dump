@@ -1,7 +1,7 @@
 .SUFFIXES:
 .SUFFIXES: .out .o .c
 
-CFLAGS= -g
+CFLAGS= -g -std=gnu11
 CC=gcc
 
 srcfiles := $(shell find . -name "*.c")
