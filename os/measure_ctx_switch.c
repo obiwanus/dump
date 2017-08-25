@@ -12,7 +12,7 @@
 
 typedef uint64_t u64;
 
-u64 LinuxGetWallClock() {
+u64 get_wall_clock() {
   u64 result = 0;
   struct timespec spec;
 
@@ -22,26 +22,33 @@ u64 LinuxGetWallClock() {
   return result;
 }
 
-#define MAX_NUM_ITERATIONS 1000
+#define MAX_NUM_ITERATIONS 100
 
-void parent_proc(int write_pipe, int read_pipe) {
+void proc_proc(int write_pipe, int read_pipe) {
   char buf[2];
+  char *string = "petya\n";
 
-  char *string = "vasia\n";
+  u64 cycle_start = get_wall_clock();
+  u64 cycle_end = get_wall_clock();
+  u64 cycle = 0;
+  u64 off_cycle = 0;
 
   for (int i = 0; i < MAX_NUM_ITERATIONS; ++i) {
-    write(write_pipe, string, 6);
+    write(write_pipe, string, 1);
+    cycle_end = get_wall_clock();
+    cycle += cycle_end - cycle_start;
+    read(read_pipe, buf, 1);
+    cycle_start = get_wall_clock();
+    off_cycle += cycle_start - cycle_end;
   }
-}
 
-void child_proc(int write_pipe, int read_pipe) {
-  char buf[2];
+  u64 cycle_time_avg = cycle / MAX_NUM_ITERATIONS;
+  u64 off_cycle_time_avg = off_cycle / MAX_NUM_ITERATIONS;
+  u64 ctx_switch_cost = (off_cycle_time_avg - cycle_time_avg) / 2;
 
-  for (int i = 0; i < MAX_NUM_ITERATIONS; ++i) {
-    while (read(read_pipe, buf, 1) > 0) {
-      write(STDOUT_FILENO, buf, 1);
-    }
-  }
+  // printf("Avg. cycle time: %lu\n", cycle_time_avg);
+  // printf("Avg. off cycle time: %lu\n", off_cycle_time_avg);
+  printf("Avg. ctx switch cost: %lu\n", ctx_switch_cost);
 }
 
 int main() {
@@ -62,19 +69,19 @@ int main() {
     printf("Fork failed\n");
     exit(1);
   }
-
   bool is_parent = (child_pid != 0);
+
   // set both processes to be scheduled on the same CPU
   sched_setaffinity(getpid(), sizeof(cpu_set), &cpu_set);
 
   if (is_parent) {
     close(parent_pipe[0]);  // close read end
     close(child_pipe[1]);  // close write end
-    parent_proc(parent_pipe[1], child_pipe[0]);
+    proc_proc(parent_pipe[1], child_pipe[0]);
   } else {
     close(child_pipe[0]);  // close read end
     close(parent_pipe[1]);  // close write end
-    child_proc(child_pipe[1], parent_pipe[0]);
+    proc_proc(child_pipe[1], parent_pipe[0]);
   }
 
   return 0;
